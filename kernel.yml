@@ -1,0 +1,62 @@
+- name: Upgrade CentOS kernel
+  hosts:
+    - system6
+    - system7
+  vars:
+    old_kernel_version: ""
+    new_kernel_version: ""
+  become: yes
+
+  tasks:
+    - name: Install yum-plugin-fastestmirror
+      yum:
+        name: yum-plugin-fastestmirror
+        state: present
+
+    - name: Check OS version
+      shell: cat /etc/redhat-release
+      register: os_version
+
+    - name: Check kernel version
+      shell: uname -sr
+      register: kernel_version
+
+    - name: Set variable for old kernel version
+      set_fact:
+        old_kernel_version: "{{ kernel_version.stdout }}"
+
+    - name: Import RPM GPG key
+      shell: rpm --import https://www.elrepo.org/RPM-GPG-KEY-elrepo.org
+
+    - name: Install ELRepo
+      shell: rpm -Uvh http://www.elrepo.org/elrepo-release-7.0-3.el7.elrepo.noarch.rpm
+
+    - name: Install kernel-ml
+      yum:
+        name: kernel-ml
+        enablerepo: elrepo-kernel
+        state: present
+
+    - name: Set default kernel
+      shell: grub2-set-default 0
+
+    - name: Generate grub.cfg
+      shell: grub2-mkconfig -o /boot/grub2/grub.cfg
+
+    - name: Check default kernel version
+      shell: grubby --default-kernel
+      register: default_kernel_version
+
+    - name: Reboot if necessary
+      reboot:
+
+    - name: Set variable for new kernel version
+      command: uname -r
+      register: new_kernel_version
+
+    - name: Print old and new kernel versions
+      debug:
+        var: item
+      with_items:
+         - "{{ old_kernel_version }}"
+         - "{{ new_kernel_version.stdout }}"
